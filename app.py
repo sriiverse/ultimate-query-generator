@@ -570,6 +570,7 @@ st.markdown("""
         }
         .card {
             padding: 1rem;
+            margin: 1.5rem 0;
         }
         .stApp {
             background: linear-gradient(135deg, #0f1419 0%, #1a1f2e 100%);
@@ -579,12 +580,21 @@ st.markdown("""
         }
         .professional-dashboard {
             padding: 1rem;
+            margin: 2rem 0;
         }
         .dev-warning {
             padding: 0.6rem 0.8rem;
         }
         .dev-warning-text {
             font-size: 0.8rem;
+        }
+        /* Additional mobile spacing for tabs and steps */
+        .stColumns {
+            gap: 1.5rem;
+        }
+        /* Ensure proper spacing after mode cards */
+        .mode-cards-container {
+            margin-bottom: 3rem;
         }
     }
 </style>
@@ -809,6 +819,22 @@ with col2:
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+# Mobile spacing after Query tabs
+st.markdown("""
+<div style="margin: 2rem 0;">
+    <!-- Mobile responsive spacing -->
+</div>
+
+<!-- Additional spacing for mobile portrait mode -->
+<style>
+@media (max-width: 768px) {
+    .stRadio {
+        margin-top: 2rem !important;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
 
 # Step 1: Operation Selection
 st.markdown("""
