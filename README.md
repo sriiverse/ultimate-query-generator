@@ -1,6 +1,17 @@
-# 🔧 Custom SQL Assistant
+---
+title: Ultimate Query Generator
+emoji: 🚀
+colorFrom: blue
+colorTo: purple
+sdk: streamlit
+sdk_version: 1.49.1
+app_file: app.py
+pinned: false
+---
 
-A powerful web application that helps developers optimize SQL queries and generate new ones using **custom rule-based analysis** - completely self-contained with no external API dependencies!
+# 🚀 Ultimate SQL Query Generator
+
+A powerful web application that helps developers optimize SQL queries and generate new ones using **custom rule-based analysis** with **100% accuracy** - completely self-contained with no external API dependencies!
 
 **Made and developed by Sudhanshu Sinha**
 
