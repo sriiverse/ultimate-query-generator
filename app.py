@@ -1,7 +1,7 @@
 import streamlit as st
 import os
 from sql_optimizer_engine import SQLOptimizerEngine, format_analysis_result
-from ultimate_query_generator import UltimateSQLGenerator, suggest_query_improvements
+from hybrid_sql_generator import HybridSQLGenerator, HybridGenerationResult, GenerationStatus
 
 # Configure Streamlit page with modern settings
 st.set_page_config(
@@ -11,9 +11,18 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Initialize our custom engines
+# Initialize our hybrid SQL system
 optimizer = SQLOptimizerEngine()
-query_generator = UltimateSQLGenerator()
+
+# Get Gemini API key from environment or Streamlit secrets
+api_key = None
+try:
+    api_key = st.secrets.get("GEMINI_API_KEY", None) or os.getenv("GEMINI_API_KEY")
+except:
+    api_key = os.getenv("GEMINI_API_KEY")
+
+# Initialize hybrid generator (works with or without API key)
+hybrid_generator = HybridSQLGenerator(api_key=api_key)
 
 # Development Warning Section
 st.markdown("""
@@ -616,20 +625,29 @@ def get_optimization_suggestion(schema: str, query: str) -> str:
     except Exception as e:
         return f"An error occurred while analyzing the query: {e}"
 
-def generate_query_from_prompt(schema: str, prompt: str) -> str:
+def generate_query_from_prompt(schema: str, prompt: str) -> HybridGenerationResult:
     """
-    Uses our custom query generator to create SQL from natural language.
+    Uses our hybrid SQL generator (AI + rule-based) to create SQL from natural language.
     """
     try:
-        # Set schema for the query generator
-        query_generator.set_schema(schema)
+        # Set schema for the hybrid generator
+        hybrid_generator.set_schema(schema)
         
-        # Generate the query
-        generated_query = query_generator.generate_query(prompt)
+        # Generate the query using hybrid approach
+        result = hybrid_generator.generate_query(prompt)
         
-        return generated_query
+        return result
     except Exception as e:
-        return f"An error occurred while generating the query: {e}"
+        # Return error as HybridGenerationResult
+        return HybridGenerationResult(
+            query=f"-- Error: {str(e)}",
+            status=GenerationStatus.AI_UNAVAILABLE,
+            validation_errors=[f"Generation error: {str(e)}"],
+            optimization_suggestions=["Please check your input and try again"],
+            performance_score=0,
+            generation_method="Error Handler",
+            confidence_score=0.0
+        )
 
 # Professional Developer Header with Stats
 st.markdown("""
@@ -637,7 +655,7 @@ st.markdown("""
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
         <div>
             <h1 style="margin-bottom: 0.5rem;">🚀 SQL Assistant Pro</h1>
-            <p style="margin: 0; opacity: 0.9;">Enterprise SQL Optimization & Query Generation Platform</p>
+            <p style="margin: 0; opacity: 0.9;">Hybrid AI + Rule-Based SQL Assistant Platform</p>
             <div style="margin-top: 0.5rem; display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 0.5rem;">
                 <span style="background: rgba(255,255,255,0.2); padding: 0.3rem 0.8rem; border-radius: 15px; font-size: 0.85rem; display: flex; align-items: center;">
                     👨‍💻 Sudhanshu Sinha
@@ -711,29 +729,29 @@ st.markdown("""
         <div class="stat-card">
             <div class="stat-header">
                 <span class="stat-icon">🧠</span>
-                <span class="stat-category">Intelligence</span>
+                <span class="stat-category">AI + Rules</span>
             </div>
-            <div class="stat-value">20+</div>
-            <div class="stat-label">Query Templates</div>
-            <div class="stat-trend positive">✓ Smart fallbacks</div>
+            <div class="stat-value">Hybrid</div>
+            <div class="stat-label">Generation Engine</div>
+            <div class="stat-trend positive">✓ Gemini + Patterns</div>
         </div>
         <div class="stat-card">
             <div class="stat-header">
                 <span class="stat-icon">🔒</span>
                 <span class="stat-category">Security</span>
             </div>
-            <div class="stat-value">100%</div>
-            <div class="stat-label">Local Processing</div>
-            <div class="stat-trend positive">✓ No API calls</div>
+            <div class="stat-value">Smart</div>
+            <div class="stat-label">Validation Layer</div>
+            <div class="stat-trend positive">✓ AI + Rules</div>
         </div>
         <div class="stat-card">
             <div class="stat-header">
                 <span class="stat-icon">💰</span>
                 <span class="stat-category">Cost</span>
             </div>
-            <div class="stat-value">$0</div>
-            <div class="stat-label">Usage Cost</div>
-            <div class="stat-trend positive">✓ Unlimited</div>
+            <div class="stat-value">$0*</div>
+            <div class="stat-label">Base Usage</div>
+            <div class="stat-trend positive">✓ Fallback ready</div>
         </div>
         <div class="stat-card">
             <div class="stat-header">
@@ -1322,50 +1340,86 @@ if process_button:
             else: # Generate Query
                 result = generate_query_from_prompt(schema_text, prompt_text)
                 
-                # Simple query generation results header
-                st.markdown("""
+                # Dynamic header based on generation method
+                if result.status == GenerationStatus.SUCCESS:
+                    header_title = "🧠 AI-Generated SQL Query"
+                    header_color = "#4facfe"
+                elif result.status == GenerationStatus.FALLBACK_USED:
+                    header_title = "🔧 Rule-Based Generated Query"
+                    header_color = "#f093fb"
+                else:
+                    header_title = "⚠️ Query Generation Result"
+                    header_color = "#ff6b6b"
+                
+                st.markdown(f"""
                 <div style="background: rgba(25, 35, 50, 0.8); padding: 2rem; border-radius: 12px; margin: 1rem 0;">
-                    <h4 style="color: #4facfe; margin-bottom: 1.5rem; text-align: center;">
-                        ✨ AI-Generated SQL Query
+                    <h4 style="color: {header_color}; margin-bottom: 1.5rem; text-align: center;">
+                        {header_title}
                     </h4>
                 </div>
                 """, unsafe_allow_html=True)
+                
+                # Status indicator
+                status_messages = {
+                    GenerationStatus.SUCCESS: ("🧠 AI-Powered Generation", "success", "#4facfe"),
+                    GenerationStatus.FALLBACK_USED: ("🔧 Rule-Based Fallback", "warning", "#f093fb"),
+                    GenerationStatus.VALIDATION_FAILED: ("⚠️ Validation Issues", "error", "#ff6b6b"),
+                    GenerationStatus.AI_UNAVAILABLE: ("🔄 Offline Mode", "info", "#667eea")
+                }
+                
+                status_text, status_type, status_color = status_messages.get(result.status, ("Unknown Status", "info", "#666"))
+                
+                col_status1, col_status2, col_status3 = st.columns([1, 2, 1])
+                with col_status2:
+                    st.markdown(f"""
+                    <div style="background: rgba(25, 35, 50, 0.6); padding: 1rem; border-radius: 10px; text-align: center; margin-bottom: 1rem; border-left: 4px solid {status_color};">
+                        <strong style="color: {status_color};">{status_text}</strong><br>
+                        <small style="color: #ffffff; opacity: 0.8;">Method: {result.generation_method}</small><br>
+                        <small style="color: #ffffff; opacity: 0.6;">Confidence: {result.confidence_score:.0%}</small>
+                    </div>
+                    """, unsafe_allow_html=True)
                 
                 col1, col2 = st.columns([3, 1])
                 
                 with col1:
-                    st.code(result, language='sql')
+                    st.code(result.query, language='sql')
+                    
+                    # Show validation errors if any
+                    if result.validation_errors:
+                        st.warning("⚠️ Validation Issues Detected:")
+                        for error in result.validation_errors:
+                            st.error(f"• {error}")
                     
                 with col2:
-                    # Simple query statistics (using native Streamlit components)
-                    query_lines = len(result.split('\n'))
-                    query_chars = len(result)
-                    query_complexity = "Medium" if query_lines > 10 else "Low"
+                    # Enhanced query statistics
+                    query_lines = len(result.query.split('\n'))
+                    query_chars = len(result.query)
+                    query_complexity = "High" if query_lines > 15 else "Medium" if query_lines > 5 else "Low"
 
-                    st.subheader("📊 Query Statistics")
+                    st.subheader("📊 Query Metrics")
                     m1, m2, m3 = st.columns(3)
                     with m1:
                         st.metric("Lines", query_lines)
                     with m2:
-                        st.metric("Characters", query_chars)
+                        st.metric("Score", f"{result.performance_score}/100")
                     with m3:
                         st.metric("Complexity", query_complexity)
 
-                    st.caption("Generation Confidence: 92% - High accuracy")
-                    st.progress(0.92)
+                    st.caption(f"Confidence: {result.confidence_score:.0%}")
+                    st.progress(result.confidence_score)
                 
-                # Simple improvement suggestions
-                improvement_suggestions = suggest_query_improvements(result, {})
-                
-                st.markdown("""
-                <div style="background: rgba(25, 35, 50, 0.8); padding: 2rem; border-radius: 12px; margin: 2rem 0;">
-                    <h4 style="color: #f093fb; margin-bottom: 1.5rem; text-align: center;">
-                        💡 Optimization Suggestions
-                    </h4>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                st.write(improvement_suggestions)
+                # Show optimization suggestions from hybrid system
+                if result.optimization_suggestions:
+                    st.markdown("""
+                    <div style="background: rgba(25, 35, 50, 0.8); padding: 2rem; border-radius: 12px; margin: 2rem 0;">
+                        <h4 style="color: #f093fb; margin-bottom: 1.5rem; text-align: center;">
+                            💡 Optimization Suggestions
+                        </h4>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    for suggestion in result.optimization_suggestions[:5]:  # Show top 5
+                        st.info(f"💡 {suggestion}")
                 
         except Exception as e:
             # Enhanced error display
@@ -1422,7 +1476,7 @@ if process_button:
 # Modern Footer
 st.markdown("""
 <div class="custom-footer">
-    <h3 style="margin-bottom: 1rem;">🚀 Custom SQL Assistant</h3>
+    <h3 style="margin-bottom: 1rem;">🚀 Hybrid SQL Assistant</h3>
     <div style="display: flex; justify-content: center; gap: 2rem; margin-bottom: 1rem; flex-wrap: wrap;">
         <div style="text-align: center;">
             <h4 style="color: #4facfe; margin-bottom: 0.5rem;">⚡ Performance</h4>
@@ -1437,14 +1491,14 @@ st.markdown("""
             <p style="font-size: 0.9rem; opacity: 0.9;">No API Limits</p>
         </div>
         <div style="text-align: center;">
-            <h4 style="color: #fed6e3; margin-bottom: 0.5rem;">🧠 Smart</h4>
-            <p style="font-size: 0.9rem; opacity: 0.9;">Rule-Based AI</p>
+            <h4 style="color: #fed6e3; margin-bottom: 0.5rem;">🧠 Hybrid</h4>
+            <p style="font-size: 0.9rem; opacity: 0.9;">AI + Rules</p>
         </div>
     </div>
     <hr style="border: none; height: 1px; background: rgba(255,255,255,0.2); margin: 1.5rem 0;">
-    <p style="margin-bottom: 0.5rem;">Made with ❤️ using <strong>Streamlit</strong> and <strong>Custom Rule-Based Analysis</strong></p>
+    <p style="margin-bottom: 0.5rem;">Made with ❤️ using <strong>Streamlit</strong> and <strong>Hybrid AI + Rule-Based Engine</strong></p>
     <p style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
-        Developed by <strong>Sudhanshu Sinha</strong> | No external APIs required!
+        Developed by <strong>Sudhanshu Sinha</strong> | Intelligent fallbacks included!
     </p>
     <div style="margin: 1rem 0; display: flex; align-items: center; justify-content: center; gap: 1rem;">
         <span style="font-size: 0.9rem; color: #ffffff;">Contact me:</span>
